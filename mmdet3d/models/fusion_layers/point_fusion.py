@@ -56,6 +56,7 @@ def point_sample(
     """
     # aug order: flip -> trans -> scale -> rot
     # The transformation follows the augmentation order in data pipeline
+    #print('img_features shape',img_features.shape)
     if pcd_flip:
         # if the points are flipped, flip them back first
         points[:, 1] = -points[:, 1]
@@ -239,6 +240,9 @@ class PointFusion(nn.Module):
         Returns:
             torch.Tensor: Fused features of each point.
         """
+        #print('img_pts shape',len(img_feats))  5
+        #print('pts_feats shape',pts_feats.shape) [18311, 64])
+        #print('img_metas',img_metas)
         img_pts = self.obtain_mlvl_feats(img_feats, pts, img_metas)
         img_pre_fuse = self.img_transform(img_pts)
         if self.training and self.dropout_ratio > 0:
@@ -246,11 +250,12 @@ class PointFusion(nn.Module):
         pts_pre_fuse = self.pts_transform(pts_feats)
 
         fuse_out = img_pre_fuse + pts_pre_fuse
+        #print('fuse_out shape',fuse_out.shape) [18311, 128])
         if self.activate_out:
             fuse_out = F.relu(fuse_out)
         if self.fuse_out:
             fuse_out = self.fuse_conv(fuse_out)
-
+        #print('fuse_out shape',fuse_out.shape) [18311, 128])
         return fuse_out
 
     def obtain_mlvl_feats(self, img_feats, pts, img_metas):
@@ -266,6 +271,7 @@ class PointFusion(nn.Module):
             torch.Tensor: Corresponding image features of each point.
         """
         if self.lateral_convs is not None:
+            #print('img_feats[i] shape',img_feats[0].shape) [1, 256, 56, 176]
             img_ins = [
                 lateral_conv(img_feats[i])
                 for i, lateral_conv in zip(self.img_levels, self.lateral_convs)
@@ -280,6 +286,9 @@ class PointFusion(nn.Module):
                 if torch.isnan(img_ins[level][i:i + 1]).any():
                     import pdb
                     pdb.set_trace()
+                #print('img_ins[level][i:i + 1] shape',img_ins[level][i:i + 1].shape)   #[1, 128, 104, 320]) [1, 128, 52, 160]) [1, 128, 26, 80])[1, 128, 13, 40])[1, 128, 7, 20])
+
+
                 mlvl_img_feats.append(
                     self.sample_single(img_ins[level][i:i + 1], pts[i][:, :3],
                                        img_metas[i]))
@@ -336,4 +345,5 @@ class PointFusion(nn.Module):
             padding_mode=self.padding_mode,
             align_corners=self.align_corners,
         )
-        return img_pts
+        
+        return img_pts   #[14945, 128]

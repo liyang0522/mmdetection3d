@@ -3,7 +3,7 @@ voxel_size = [0.05, 0.05, 0.1]
 point_cloud_range = [0, -40, -3, 70.4, 40, 1]
 
 model = dict(
-    type='DynamicMVXFasterRCNN',
+    type='MVXFasterRCNN',
     img_backbone=dict(
         type='ResNet',
         depth=50,
@@ -19,13 +19,13 @@ model = dict(
         out_channels=256,
         num_outs=5),
     pts_voxel_layer=dict(
-        max_num_points=-1,
+        max_num_points=5,
         point_cloud_range=point_cloud_range,
         voxel_size=voxel_size,
-        max_voxels=(-1, -1),
+        max_voxels=16000,
     ),
     pts_voxel_encoder=dict(
-        type='DynamicVFE',
+        type='HardVFE',
         in_channels=4,
         feat_channels=[64, 64],
         with_distance=False,
@@ -188,7 +188,7 @@ test_pipeline = [
 ]
 
 data = dict(
-    samples_per_gpu=2,
+    samples_per_gpu=1,
     workers_per_gpu=2,
     train=dict(
         type='RepeatDataset',
@@ -245,7 +245,7 @@ log_config = dict(
 # yapf:enable
 evaluation = dict(interval=1)
 # runtime settings
-total_epochs = 40
+total_epochs = 80
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = None

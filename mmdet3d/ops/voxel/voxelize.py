@@ -38,6 +38,7 @@ class _Voxelization(Function):
             num_points_per_voxel: [M] int32 tensor. Only returned when
                 max_points != -1.
         """
+        
         if max_points == -1 or max_voxels == -1:
             coors = points.new_zeros(size=(points.size(0), 3), dtype=torch.int)
             dynamic_voxelize(points, coors, voxel_size, coors_range, 3)

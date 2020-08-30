@@ -227,7 +227,8 @@ class PointFusion(nn.Module):
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 xavier_init(m, distribution='uniform')
 
-    def forward(self, img_feats, pts, pts_feats, img_metas):
+    def forward(self, img_feats, pts, img_metas):
+
         """Forward function.
 
         Args:
@@ -244,18 +245,26 @@ class PointFusion(nn.Module):
         #print('pts_feats shape',pts_feats.shape) [18311, 64])
         #print('img_metas',img_metas)
         img_pts = self.obtain_mlvl_feats(img_feats, pts, img_metas)
+        #print('img_pts shape',img_pts[0].shape) #640
         img_pre_fuse = self.img_transform(img_pts)
         if self.training and self.dropout_ratio > 0:
             img_pre_fuse = F.dropout(img_pre_fuse, self.dropout_ratio)
-        pts_pre_fuse = self.pts_transform(pts_feats)
+        #print('img_pre_fuse shape',img_pre_fuse[0].shape)#128
 
-        fuse_out = img_pre_fuse + pts_pre_fuse
-        #print('fuse_out shape',fuse_out.shape) [18311, 128])
+        #pts_pre_fuse = self.pts_transform(pts_feats)
+        #print('pts_pre_fuse shape',pts_pre_fuse[0].shape) #128
+
+        #fuse_out = img_pre_fuse + pts_pre_fuse
+        fuse_out = img_pre_fuse 
+        
+        #print('pts_pre_fuse[0] shape',pts_pre_fuse[0][0]) #128
+        #print('img_pre_fuse[0] shape',img_pre_fuse[0][0])#128
+        #print('fuse_out[0] shape',fuse_out[0][0]) #[18311, 128])
         if self.activate_out:
             fuse_out = F.relu(fuse_out)
         if self.fuse_out:
             fuse_out = self.fuse_conv(fuse_out)
-        #print('fuse_out shape',fuse_out.shape) [18311, 128])
+        #print('fuse_out shape',fuse_out.shape) #[18311, 128])
         return fuse_out
 
     def obtain_mlvl_feats(self, img_feats, pts, img_metas):

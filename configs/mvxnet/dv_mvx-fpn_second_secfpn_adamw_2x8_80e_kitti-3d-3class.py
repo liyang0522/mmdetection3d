@@ -42,10 +42,15 @@ model = dict(
             img_levels=[0, 1, 2, 3, 4],
             align_corners=False,
             activate_out=True,
-            fuse_out=False)),
+            fuse_out=False),
+        sa_layer=dict(
+            type='SA',
+            mlps=[[32, 32], [32, 32]],
+            pool_radius=[0.4,0.8],
+            nsample=[16, 16])),
     pts_middle_encoder=dict(
         type='SparseEncoder',
-        in_channels=128,
+        in_channels=256,
         sparse_shape=[41, 1600, 1408],
         order=('conv', 'norm', 'act')),
     pts_backbone=dict(
@@ -245,7 +250,7 @@ log_config = dict(
 # yapf:enable
 evaluation = dict(interval=1)
 # runtime settings
-total_epochs = 80
+total_epochs = 100
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = None

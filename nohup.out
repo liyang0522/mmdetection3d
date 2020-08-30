@@ -1,0 +1,48 @@
+2020-08-28 18:45:59,799 - mmdet - INFO - Environment info:
+------------------------------------------------------------
+sys.platform: linux
+Python: 3.7.7 (default, May  7 2020, 21:25:33) [GCC 7.3.0]
+CUDA available: True
+CUDA_HOME: /usr/local/cuda-10.0
+NVCC: Cuda compilation tools, release 10.0, V10.0.130
+GPU 0: GeForce RTX 2080 Ti
+GCC: gcc (Ubuntu 5.4.0-6ubuntu1~16.04.12) 5.4.0 20160609
+PyTorch: 1.4.0
+PyTorch compiling details: PyTorch built with:
+  - GCC 7.3
+  - Intel(R) Math Kernel Library Version 2020.0.1 Product Build 20200208 for Intel(R) 64 architecture applications
+  - Intel(R) MKL-DNN v0.21.1 (Git Hash 7d2fd500bc78936d1d648ca713b901012f470dbc)
+  - OpenMP 201511 (a.k.a. OpenMP 4.5)
+  - NNPACK is enabled
+  - CUDA Runtime 10.0
+  - NVCC architecture flags: -gencode;arch=compute_37,code=sm_37;-gencode;arch=compute_50,code=sm_50;-gencode;arch=compute_60,code=sm_60;-gencode;arch=compute_61,code=sm_61;-gencode;arch=compute_70,code=sm_70;-gencode;arch=compute_75,code=sm_75;-gencode;arch=compute_37,code=compute_37
+  - CuDNN 7.6.3
+  - Magma 2.5.1
+  - Build settings: BLAS=MKL, BUILD_NAMEDTENSOR=OFF, BUILD_TYPE=Release, CXX_FLAGS= -Wno-deprecated -fvisibility-inlines-hidden -fopenmp -DUSE_FBGEMM -DUSE_QNNPACK -DUSE_PYTORCH_QNNPACK -O2 -fPIC -Wno-narrowing -Wall -Wextra -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wno-sign-compare -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-unused-result -Wno-strict-overflow -Wno-strict-aliasing -Wno-error=deprecated-declarations -Wno-stringop-overflow -Wno-error=pedantic -Wno-error=redundant-decls -Wno-error=old-style-cast -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Wno-stringop-overflow, DISABLE_NUMA=1, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, PERF_WITH_AVX512=1, USE_CUDA=ON, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=ON, USE_NNPACK=ON, USE_OPENMP=ON, USE_STATIC_DISPATCH=OFF, 
+
+TorchVision: 0.5.0
+OpenCV: 4.4.0
+MMCV: 1.1.0
+MMDetection: 2.3.0
+MMDetection3D: 0.5.0+7ae1c67
+MMDetection3D Compiler: GCC 5.4
+MMDetection3D CUDA Compiler: 10.0
+------------------------------------------------------------
+
+2020-08-28 18:45:59,799 - mmdet - INFO - Distributed training: False
+Traceback (most recent call last):
+  File "tools/train.py", line 166, in <module>
+    main()
+  File "tools/train.py", line 128, in main
+    logger.info(f'Config:\n{cfg.pretty_text}')
+  File "/data/amax/b510/ly/.conda/envs/open-mmlab/lib/python3.7/site-packages/mmcv/utils/config.py", line 346, in pretty_text
+    text, _ = FormatCode(text, style_config=yapf_style, verify=True)
+  File "/data/amax/b510/ly/.conda/envs/open-mmlab/lib/python3.7/site-packages/yapf/yapflib/yapf_api.py", line 167, in FormatCode
+    _SplitSemicolons(uwlines), verify, lines)
+  File "/data/amax/b510/ly/.conda/envs/open-mmlab/lib/python3.7/site-packages/yapf/yapflib/reformatter.py", line 94, in Reformat
+    if not _AnalyzeSolutionSpace(state):
+  File "/data/amax/b510/ly/.conda/envs/open-mmlab/lib/python3.7/site-packages/yapf/yapflib/reformatter.py", line 497, in _AnalyzeSolutionSpace
+    if node.state in seen:
+  File "/data/amax/b510/ly/.conda/envs/open-mmlab/lib/python3.7/site-packages/yapf/yapflib/format_decision_state.py", line 115, in __hash__
+    return hash((self.next_token, self.column, self.paren_level,
+KeyboardInterrupt

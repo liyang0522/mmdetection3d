@@ -316,6 +316,7 @@ class HardVFE(nn.Module):
                  norm_cfg=dict(type='BN1d', eps=1e-3, momentum=0.01),
                  mode='max',
                  fusion_layer=None,
+                 sa_layer=None,
                  return_point_feats=False):
         super(HardVFE, self).__init__()
         assert len(feat_channels) > 0
@@ -332,9 +333,9 @@ class HardVFE(nn.Module):
         self.return_point_feats = return_point_feats
 
         # Need pillar (voxel) size and x/y offset to calculate pillar offset
-        self.vx = voxel_size[0]
-        self.vy = voxel_size[1]
-        self.vz = voxel_size[2]
+        self.vx = float(voxel_size[0])
+        self.vy = float(voxel_size[1])
+        self.vz = float(voxel_size[2])
         self.x_offset = self.vx / 2 + point_cloud_range[0]
         self.y_offset = self.vy / 2 + point_cloud_range[1]
         self.z_offset = self.vz / 2 + point_cloud_range[2]
@@ -358,6 +359,7 @@ class HardVFE(nn.Module):
             else:
                 max_out = True
                 cat_max = True
+
             vfe_layers.append(
                 VFELayer(
                     in_filters,
@@ -372,7 +374,27 @@ class HardVFE(nn.Module):
         if fusion_layer is not None:
             self.fusion_layer = builder.build_fusion_layer(fusion_layer)
 
+        self.sa_layer = None
+        if sa_layer is not None:
+            self.sa_layer = builder.build_fusion_layer(sa_layer)
+        
+        
+
+        self.channel_at = nn.Sequential(
+            nn.Linear(256, 32),
+            nn.ReLU(inplace=True),
+            nn.Linear(32, 256),
+            nn.Sigmoid()
+            )
+        #voxel attention
+        self.voxel_at = nn.Sequential(
+            nn.Linear(256 + 3, 1),
+            nn.ReLU(inplace=True),
+            nn.Sigmoid()
+        )
+
     def forward(self,
+                pts,
                 features,
                 num_points,
                 coors,
@@ -422,6 +444,18 @@ class HardVFE(nn.Module):
             points_dist = torch.norm(features[:, :, :3], 2, 2, keepdim=True)
             features_ls.append(points_dist)
 
+        voxel_center = coors.new_zeros(size=(coors.size(0), 3), dtype=torch.float)
+        voxel_center[:, 0] = coors[:, 3] * self.vx + self.x_offset
+        voxel_center[:, 1] = coors[:, 2] * self.vy + self.y_offset
+        voxel_center[:, 2] = coors[:, 1] * self.vz + self.z_offset
+        #print('coors[:, 3] * self.vx + self.x_offset',coors[:, 3] * self.vx + self.x_offset)
+        #print('coors[:, 2] * self.vx + self.x_offset',coors[:, 2] * self.vy + self.y_offset)
+        #print('coors[:, 3] * self.vx + self.x_offset',coors[:, 1] * self.vz + self.z_offset)
+        #print(' voxel_center[:, 0]', voxel_center[0, 0])
+        #print(' voxel_center[:, 1]', voxel_center[0, 1])
+        #print(' voxel_center[:, 1]', voxel_center[0, 2])
+        #print('voxel_center shape',voxel_center.shape) #[15196, 3]
+        
         # Combine together feature decorations
         voxel_feats = torch.cat(features_ls, dim=-1)
         # The feature decorations were calculated without regard to whether
@@ -433,15 +467,29 @@ class HardVFE(nn.Module):
 
         for i, vfe in enumerate(self.vfe_layers):
             voxel_feats = vfe(voxel_feats)
+            #print('voxel_feats shape', voxel_feats.shape) #[16000, 5, 128] > [16000, 5, 64]
+        voxel_feats = torch.max(voxel_feats, dim=1)[0]   #[16000, 64]
 
+        if self.sa_layer is not None:
+            sa_feats = self.sa_layer(voxel_center, coors, pts )
+        #print('sa_feats shape',sa_feats.shape) #16000, 64
         if (self.fusion_layer is not None and img_feats is not None):
-            voxel_feats = self.fusion_with_mask(features, mask, voxel_feats,
-                                                coors, img_feats, img_metas)
+            voxel_img_feats = self.fusion_with_mask(features, mask, coors, img_feats, img_metas)
 
-        return voxel_feats
+        #print('voxel_img_feats shape',voxel_img_feats.shape)#[14035, 128]
+        final_voxel_feats = torch.cat((voxel_feats, sa_feats, voxel_img_feats), -1)
+        #print('final_voxel_feats shape', final_voxel_feats.shape) #[16000, 256]
 
-    def fusion_with_mask(self, features, mask, voxel_feats, coors, img_feats,
-                         img_metas):
+        channel_attention = self.channel_at(final_voxel_feats)
+        final_voxel_feats_ca = final_voxel_feats * channel_attention
+
+        voxel_feat_concat = torch.cat([final_voxel_feats_ca, voxel_center], dim=-1)
+        voxel_attention = self.voxel_at(voxel_feat_concat)
+
+        final  =  final_voxel_feats_ca * voxel_attention
+        return final
+
+    def fusion_with_mask(self, features, mask, coors, img_feats, img_metas):
         """Fuse image and point features with mask.
 
         Args:
@@ -462,15 +510,19 @@ class HardVFE(nn.Module):
         for i in range(batch_size):
             single_mask = (coors[:, 0] == i)
             points.append(features[single_mask][mask[single_mask]])
+        #print('features shape',features.shape) #[16000, 5, 4]
 
-        point_feats = voxel_feats[mask]
-        point_feats = self.fusion_layer(img_feats, points, point_feats,
-                                        img_metas)
-
-        voxel_canvas = voxel_feats.new_zeros(
-            size=(voxel_feats.size(0), voxel_feats.size(1),
-                  point_feats.size(-1)))
-        voxel_canvas[mask] = point_feats
-        out = torch.max(voxel_canvas, dim=1)[0]
-
+        #print('voxel shape',coors.shape) #[13262, 4]
+        #print('points shape', points[0].shape) #([17110, 4]
+        
+        #print('point_feats shape',point_feats.shape) #[17110, 64]
+        point_img_feats = self.fusion_layer(img_feats, points, img_metas)
+        #print('point_img_feats shape',point_img_feats.shape) #[17110, 128]
+        voxel_canvas = features.new_zeros(
+            size=(features.size(0), features.size(1),
+                  point_img_feats.size(-1)))
+        voxel_canvas[mask] = point_img_feats
+        #print('voxel_canvas shape',voxel_canvas.shape) #[16000, 5, 128]
+        out = torch.max(voxel_canvas, dim=1)[0]  
+        #print('out shape' ,out.shape) #[13646, 128]
         return out

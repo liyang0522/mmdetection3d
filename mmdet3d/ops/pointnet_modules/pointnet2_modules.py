@@ -26,7 +26,7 @@ class StackSAModuleMSG(nn.Module):
         for i in range(len(radii)):
             radius = radii[i]
             nsample = nsamples[i]
-            self.groupers.append(pointnet2_utils.QueryAndGroup(radius, nsample, use_xyz=use_xyz))
+            self.groupers.append(pointnet2_utils.QueryAndGroup2(radius, nsample, use_xyz=use_xyz))
             mlp_spec = mlps[i]
             if use_xyz:
                 mlp_spec[0] += 3

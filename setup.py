@@ -307,6 +307,19 @@ if __name__ == '__main__':
                 sources=['src/furthest_point_sample.cpp'],
                 sources_cuda=['src/furthest_point_sample_cuda.cu']),
             make_cuda_ext(
+                name='pointnet2_stack_cuda',
+                module='mmdet3d.ops.pointnet_modules',
+                sources=[
+                    'src/pointnet2_api.cpp',
+                    'src/ball_query.cpp',
+                    'src/ball_query_gpu.cu',
+                    'src/group_points.cpp',
+                    'src/group_points_gpu.cu',
+                    'src/sampling.cpp',
+                    'src/sampling_gpu.cu',
+                ],
+            ),
+            make_cuda_ext(
                 name='gather_points_ext',
                 module='mmdet3d.ops.gather_points',
                 sources=['src/gather_points.cpp'],

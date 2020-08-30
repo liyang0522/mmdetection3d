@@ -51,3 +51,4 @@ def build_middle_encoder(cfg):
 def build_fusion_layer(cfg):
     """Build fusion layer."""
     return build(cfg, FUSION_LAYERS)
+

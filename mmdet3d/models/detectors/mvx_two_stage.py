@@ -168,6 +168,7 @@ class MVXTwoStageDetector(Base3DDetector):
 
     def extract_img_feat(self, img, img_metas):
         """Extract features of images."""
+        #print('0 ima shape:',img.shape) #[1, 3, 384, 1248]
         if self.with_img_backbone:
             if img.dim() == 5 and img.size(0) == 1:
                 img.squeeze_()
@@ -175,19 +176,36 @@ class MVXTwoStageDetector(Base3DDetector):
                 B, N, C, H, W = img.size()
                 img = img.view(B * N, C, H, W)
             img_feats = self.img_backbone(img)
+            #print('1 img_feats shape',img_feats[0].shape)  #[1, 256, 96, 312]
+            #print('1 img_feats shape',img_feats[1].shape)  #[1, 512, 48, 156]
+            #print('1 img_feats shape',img_feats[2].shape)  #[1, 1024, 24, 78]
+            #print('1 img_feats shape',img_feats[3].shape)  #[1, 2048, 12, 39]
+
+
+
         else:
             return None
         if self.with_img_neck:
             img_feats = self.img_neck(img_feats)
+            #print('2 img_feats shape',img_feats[0].shape)  #[1, 256, 96, 312]
+            #print('2 img_feats shape',img_feats[1].shape)  #[1, 256, 48, 156]
+            #print('2 img_feats shape',img_feats[2].shape)  #[1, 256, 24, 78]
+            #print('2 img_feats shape',img_feats[3].shape)  #[1, 256, 12, 39]
+            #print('2 img_feats shape',img_feats[4].shape)  #[1, 256, 6, 20])
         return img_feats
 
     def extract_pts_feat(self, pts, img_feats, img_metas):
         """Extract features of points."""
         if not self.with_pts_bbox:
             return None
+        #print('pts shape',len(pts[0])) #18295
         voxels, num_points, coors = self.voxelize(pts)
-        voxel_features = self.pts_voxel_encoder(voxels, num_points, coors,
+        #print('voxels shape',voxels.shape) #[16000, 5, 4]
+        #print('num_points shape',num_points.shape) #[16000]
+        #print('coors shape',coors.shape) #[16000, 4]
+        voxel_features = self.pts_voxel_encoder(pts, voxels, num_points, coors,
                                                 img_feats, img_metas)
+        #print('voxel_features shape',voxel_features.shape) #[16000, 128]
         batch_size = coors[-1, 0] + 1
         x = self.pts_middle_encoder(voxel_features, coors, batch_size)
         x = self.pts_backbone(x)
@@ -262,6 +280,7 @@ class MVXTwoStageDetector(Base3DDetector):
         Returns:
             dict: Losses of different branches.
         """
+
         img_feats, pts_feats = self.extract_feat(
             points, img=img, img_metas=img_metas)
         losses = dict()
@@ -302,6 +321,7 @@ class MVXTwoStageDetector(Base3DDetector):
         Returns:
             dict: Losses of each branch.
         """
+
         outs = self.pts_bbox_head(pts_feats)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.pts_bbox_head.loss(
@@ -335,6 +355,7 @@ class MVXTwoStageDetector(Base3DDetector):
         Returns:
             dict: Losses of each branch.
         """
+
         losses = dict()
         # RPN forward and loss
         if self.with_img_rpn:

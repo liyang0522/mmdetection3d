@@ -106,7 +106,7 @@ class GroupingOperation(Function):
 grouping_operation = GroupingOperation.apply
 
 
-class QueryAndGroup(nn.Module):
+class QueryAndGroup2(nn.Module):
     def __init__(self, radius: float, nsample: int, use_xyz: bool = True):
         """
         Args:

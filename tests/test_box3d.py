@@ -884,6 +884,15 @@ def test_camera_boxes3d():
     # the pytorch print loses some precision
     assert torch.allclose(boxes.corners, expected_tensor, rtol=1e-4, atol=1e-7)
 
+    # test init with a given origin
+    boxes_origin_given = CameraInstance3DBoxes(
+        th_boxes.clone(), box_dim=7, origin=(0.5, 0.5, 0.5))
+    expected_tensor = th_boxes.clone()
+    expected_tensor[:, :3] = th_boxes[:, :3] + th_boxes[:, 3:6] * (
+        th_boxes.new_tensor((0.5, 1.0, 0.5)) - th_boxes.new_tensor(
+            (0.5, 0.5, 0.5)))
+    assert torch.allclose(boxes_origin_given.tensor, expected_tensor)
+
 
 def test_boxes3d_overlaps():
     """Test the iou calculation of boxes in different modes.
@@ -1134,6 +1143,55 @@ def test_depth_boxes3d():
             device='cuda:0',
             dtype=torch.int32)
         assert torch.all(box_idxs_of_pts == expected_idxs_of_pts)
+
+    # test get_surface_line_center
+    boxes = torch.tensor(
+        [[0.3294, 1.0359, 0.1171, 1.0822, 1.1247, 1.3721, 0.4916],
+         [-2.4630, -2.6324, -0.1616, 0.9202, 1.7896, 0.1992, 0.3185]])
+    boxes = DepthInstance3DBoxes(
+        boxes, box_dim=boxes.shape[-1], with_yaw=True, origin=(0.5, 0.5, 0.5))
+    surface_center, line_center = boxes.get_surface_line_center()
+
+    expected_surface_center = torch.tensor([[0.3294, 1.0359, 0.8031],
+                                            [0.3294, 1.0359, -0.5689],
+                                            [0.5949, 1.5317, 0.1171],
+                                            [0.1533, 0.5018, 0.1171],
+                                            [0.8064, 0.7805, 0.1171],
+                                            [-0.1845, 1.2053, 0.1171],
+                                            [-2.4630, -2.6324, -0.0620],
+                                            [-2.4630, -2.6324, -0.2612],
+                                            [-2.0406, -1.8436, -0.1616],
+                                            [-2.7432, -3.4822, -0.1616],
+                                            [-2.0574, -2.8496, -0.1616],
+                                            [-2.9000, -2.4883, -0.1616]])
+
+    expected_line_center = torch.tensor([[0.8064, 0.7805, 0.8031],
+                                         [-0.1845, 1.2053, 0.8031],
+                                         [0.5949, 1.5317, 0.8031],
+                                         [0.1533, 0.5018, 0.8031],
+                                         [0.8064, 0.7805, -0.5689],
+                                         [-0.1845, 1.2053, -0.5689],
+                                         [0.5949, 1.5317, -0.5689],
+                                         [0.1533, 0.5018, -0.5689],
+                                         [1.0719, 1.2762, 0.1171],
+                                         [0.6672, 0.3324, 0.1171],
+                                         [0.1178, 1.7871, 0.1171],
+                                         [-0.3606, 0.6713, 0.1171],
+                                         [-2.0574, -2.8496, -0.0620],
+                                         [-2.9000, -2.4883, -0.0620],
+                                         [-2.0406, -1.8436, -0.0620],
+                                         [-2.7432, -3.4822, -0.0620],
+                                         [-2.0574, -2.8496, -0.2612],
+                                         [-2.9000, -2.4883, -0.2612],
+                                         [-2.0406, -1.8436, -0.2612],
+                                         [-2.7432, -3.4822, -0.2612],
+                                         [-1.6350, -2.0607, -0.1616],
+                                         [-2.3062, -3.6263, -0.1616],
+                                         [-2.4462, -1.6264, -0.1616],
+                                         [-3.1802, -3.3381, -0.1616]])
+
+    assert torch.allclose(surface_center, expected_surface_center, atol=1e-04)
+    assert torch.allclose(line_center, expected_line_center, atol=1e-04)
 
 
 def test_rotation_3d_in_axis():

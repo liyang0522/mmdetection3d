@@ -1,9 +1,13 @@
 import mmcv
 import numpy as np
+import pytest
 import torch
 
 from mmdet3d.core import Box3DMode, CameraInstance3DBoxes, LiDARInstance3DBoxes
-from mmdet3d.datasets import ObjectNoise, ObjectSample, RandomFlip3D
+from mmdet3d.core.points import LiDARPoints
+from mmdet3d.datasets import (BackgroundPointsFilter, ObjectNoise,
+                              ObjectSample, RandomFlip3D,
+                              VoxelBasedPointSampler)
 
 
 def test_remove_points_in_boxes():
@@ -29,9 +33,9 @@ def test_remove_points_in_boxes():
          [20.2630, 5.1947, -1.4799, 0.7300, 1.7600, 1.7300, 1.5100],
          [18.2496, 3.1887, -1.6109, 0.5600, 1.6800, 1.7100, 1.5600],
          [7.7396, -4.3245, -1.5801, 0.5600, 1.7900, 1.8000, -0.8300]])
-
+    points = LiDARPoints(points, points_dim=4)
     points = ObjectSample.remove_points_in_boxes(points, boxes)
-    assert points.shape == (10, 4)
+    assert points.tensor.numpy().shape == (10, 4)
 
 
 def test_object_sample():
@@ -76,6 +80,8 @@ def test_object_sample():
             gt_labels.append(CLASSES.index(cat))
         else:
             gt_labels.append(-1)
+    gt_labels = np.array(gt_labels, dtype=np.long)
+    points = LiDARPoints(points, points_dim=4)
     input_dict = dict(
         points=points, gt_bboxes_3d=gt_bboxes_3d, gt_labels_3d=gt_labels)
     input_dict = object_sample(input_dict)
@@ -92,7 +98,7 @@ def test_object_sample():
                         'classes=[\'Pedestrian\', \'Cyclist\', \'Car\'], ' \
                         'sample_groups={\'Pedestrian\': 6}'
     assert repr_str == expected_repr_str
-    assert points.shape == (800, 4)
+    assert points.tensor.numpy().shape == (800, 4)
     assert gt_bboxes_3d.tensor.shape == (1, 7)
     assert np.all(gt_labels_3d == [0])
 
@@ -115,6 +121,7 @@ def test_object_noise():
                                   axis=1).astype(np.float32)
     gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(
         Box3DMode.LIDAR, np.linalg.inv(rect @ Trv2c))
+    points = LiDARPoints(points, points_dim=4)
     input_dict = dict(points=points, gt_bboxes_3d=gt_bboxes_3d)
     input_dict = object_noise(input_dict)
     points = input_dict['points']
@@ -128,7 +135,7 @@ def test_object_noise():
                         'rot_range=[-0.15707963267, 0.15707963267])'
 
     assert repr_str == expected_repr_str
-    assert points.shape == (800, 4)
+    assert points.tensor.numpy().shape == (800, 4)
     assert torch.allclose(gt_bboxes_3d, expected_gt_bboxes_3d, 1e-3)
 
 
@@ -155,6 +162,7 @@ def test_random_flip_3d():
              [12.7557, 2.2996, -1.4869, 0.6100, 1.1100, 1.9000, -1.9390],
              [10.6677, 0.8064, -1.5435, 0.7900, 0.9600, 1.7900, 1.0856],
              [5.0903, 5.1004, -1.2694, 0.7100, 1.7000, 1.8300, -1.9136]]))
+    points = LiDARPoints(points, points_dim=4)
     input_dict = dict(
         points=points,
         bbox3d_fields=bbox3d_fields,
@@ -162,7 +170,7 @@ def test_random_flip_3d():
         img_fields=img_fields,
         gt_bboxes_3d=gt_bboxes_3d)
     input_dict = random_flip_3d(input_dict)
-    points = input_dict['points']
+    points = input_dict['points'].tensor.numpy()
     gt_bboxes_3d = input_dict['gt_bboxes_3d'].tensor
     expected_points = np.array([[22.7035, -9.3901, -0.2848, 0.0000],
                                 [21.9826, -9.1766, -0.2698, 0.0000],
@@ -186,3 +194,118 @@ def test_random_flip_3d():
     assert np.allclose(points, expected_points)
     assert torch.allclose(gt_bboxes_3d, expected_gt_bboxes_3d)
     assert repr_str == expected_repr_str
+
+
+def test_background_points_filter():
+    np.random.seed(0)
+    background_points_filter = BackgroundPointsFilter((0.5, 2.0, 0.5))
+    points = np.fromfile(
+        './tests/data/kitti/training/velodyne_reduced/000000.bin',
+        np.float32).reshape(-1, 4)
+    orig_points = points.copy()
+    annos = mmcv.load('./tests/data/kitti/kitti_infos_train.pkl')
+    info = annos[0]
+    rect = info['calib']['R0_rect'].astype(np.float32)
+    Trv2c = info['calib']['Tr_velo_to_cam'].astype(np.float32)
+    annos = info['annos']
+    loc = annos['location']
+    dims = annos['dimensions']
+    rots = annos['rotation_y']
+    gt_bboxes_3d = np.concatenate([loc, dims, rots[..., np.newaxis]],
+                                  axis=1).astype(np.float32)
+    gt_bboxes_3d = CameraInstance3DBoxes(gt_bboxes_3d).convert_to(
+        Box3DMode.LIDAR, np.linalg.inv(rect @ Trv2c))
+    extra_points = gt_bboxes_3d.corners.reshape(8, 3)[[1, 2, 5, 6], :]
+    extra_points[:, 2] += 0.1
+    extra_points = torch.cat([extra_points, extra_points.new_zeros(4, 1)], 1)
+    points = np.concatenate([points, extra_points.numpy()], 0)
+    points = LiDARPoints(points, points_dim=4)
+    input_dict = dict(points=points, gt_bboxes_3d=gt_bboxes_3d)
+    input_dict = background_points_filter(input_dict)
+
+    points = input_dict['points'].tensor.numpy()
+    repr_str = repr(background_points_filter)
+    expected_repr_str = 'BackgroundPointsFilter(bbox_enlarge_range=' \
+                        '[[0.5, 2.0, 0.5]])'
+    assert repr_str == expected_repr_str
+    assert points.shape == (800, 4)
+    assert np.allclose(orig_points, points)
+
+    # test single float config
+    BackgroundPointsFilter(0.5)
+
+    # The length of bbox_enlarge_range should be 3
+    with pytest.raises(AssertionError):
+        BackgroundPointsFilter((0.5, 2.0))
+
+
+def test_voxel_based_point_filter():
+    np.random.seed(0)
+    cur_sweep_cfg = dict(
+        voxel_size=[0.1, 0.1, 0.1],
+        point_cloud_range=[-50, -50, -4, 50, 50, 2],
+        max_num_points=1,
+        max_voxels=1024)
+    prev_sweep_cfg = dict(
+        voxel_size=[0.1, 0.1, 0.1],
+        point_cloud_range=[-50, -50, -4, 50, 50, 2],
+        max_num_points=1,
+        max_voxels=1024)
+    voxel_based_points_filter = VoxelBasedPointSampler(
+        cur_sweep_cfg, prev_sweep_cfg, time_dim=3)
+    points = np.stack([
+        np.random.rand(4096) * 120 - 60,
+        np.random.rand(4096) * 120 - 60,
+        np.random.rand(4096) * 10 - 6
+    ],
+                      axis=-1)
+
+    input_time = np.concatenate([np.zeros([2048, 1]), np.ones([2048, 1])], 0)
+    input_points = np.concatenate([points, input_time], 1)
+    input_points = LiDARPoints(input_points, points_dim=4)
+    input_dict = dict(
+        points=input_points, pts_mask_fields=[], pts_seg_fields=[])
+    input_dict = voxel_based_points_filter(input_dict)
+
+    points = input_dict['points']
+    repr_str = repr(voxel_based_points_filter)
+    expected_repr_str = """VoxelBasedPointSampler(
+    num_cur_sweep=1024,
+    num_prev_sweep=1024,
+    time_dim=3,
+    cur_voxel_generator=
+        VoxelGenerator(voxel_size=[0.1 0.1 0.1],
+                       point_cloud_range=[-50.0, -50.0, -4.0, 50.0, 50.0, 2.0],
+                       max_num_points=1,
+                       max_voxels=1024,
+                       grid_size=[1000, 1000, 60]),
+    prev_voxel_generator=
+        VoxelGenerator(voxel_size=[0.1 0.1 0.1],
+                       point_cloud_range=[-50.0, -50.0, -4.0, 50.0, 50.0, 2.0],
+                       max_num_points=1,
+                       max_voxels=1024,
+                       grid_size=[1000, 1000, 60]))"""
+
+    assert repr_str == expected_repr_str
+    assert points.shape == (2048, 4)
+    assert (points.tensor[:, :3].min(0)[0].numpy() <
+            cur_sweep_cfg['point_cloud_range'][0:3]).sum() == 0
+    assert (points.tensor[:, :3].max(0)[0].numpy() >
+            cur_sweep_cfg['point_cloud_range'][3:6]).sum() == 0
+
+    # Test instance mask and semantic mask
+    input_dict = dict(points=input_points)
+    input_dict['pts_instance_mask'] = np.random.randint(0, 10, [4096])
+    input_dict['pts_semantic_mask'] = np.random.randint(0, 6, [4096])
+    input_dict['pts_mask_fields'] = ['pts_instance_mask']
+    input_dict['pts_seg_fields'] = ['pts_semantic_mask']
+
+    input_dict = voxel_based_points_filter(input_dict)
+    pts_instance_mask = input_dict['pts_instance_mask']
+    pts_semantic_mask = input_dict['pts_semantic_mask']
+    assert pts_instance_mask.shape == (2048, )
+    assert pts_semantic_mask.shape == (2048, )
+    assert pts_instance_mask.max() < 10
+    assert pts_instance_mask.min() >= 0
+    assert pts_semantic_mask.max() < 6
+    assert pts_semantic_mask.min() >= 0

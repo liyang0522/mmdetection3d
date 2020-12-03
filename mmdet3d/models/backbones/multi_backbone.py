@@ -1,7 +1,7 @@
 import copy
 import torch
 from mmcv.cnn import ConvModule
-from mmcv.runner import load_checkpoint
+from mmcv.runner import auto_fp16, load_checkpoint
 from torch import nn as nn
 
 from mmdet.models import BACKBONES, build_backbone
@@ -74,6 +74,7 @@ class MultiBackbone(nn.Module):
                     conv_cfg=conv_cfg,
                     norm_cfg=norm_cfg,
                     act_cfg=act_cfg,
+                    bias=True,
                     inplace=True))
 
     def init_weights(self, pretrained=None):
@@ -85,6 +86,7 @@ class MultiBackbone(nn.Module):
             logger = get_root_logger()
             load_checkpoint(self, pretrained, strict=False, logger=logger)
 
+    @auto_fp16()
     def forward(self, points):
         """Forward pass.
 
@@ -96,13 +98,13 @@ class MultiBackbone(nn.Module):
             dict[str, list[torch.Tensor]]: Outputs from multiple backbones.
 
                 - fp_xyz[suffix] (list[torch.Tensor]): The coordinates of
-                    each fp features.
+                  each fp features.
                 - fp_features[suffix] (list[torch.Tensor]): The features
-                    from each Feature Propagate Layers.
+                  from each Feature Propagate Layers.
                 - fp_indices[suffix] (list[torch.Tensor]): Indices of the
-                    input points.
+                  input points.
                 - hd_feature (torch.Tensor): The aggregation feature
-                    from multiple backbones.
+                  from multiple backbones.
         """
         ret = {}
         fp_features = []

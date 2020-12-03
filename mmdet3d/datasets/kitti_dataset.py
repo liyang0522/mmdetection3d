@@ -266,6 +266,7 @@ class KittiDataset(Custom3DDataset):
             result_files = self.bbox2result_kitti2d(outputs, self.CLASSES,
                                                     pklfile_prefix,
                                                     submission_prefix)
+           
         elif 'pts_bbox' in outputs[0] or 'img_bbox' in outputs[0]:
             result_files = dict()
             for name in outputs[0]:
@@ -284,10 +285,12 @@ class KittiDataset(Custom3DDataset):
                         results_, self.CLASSES, pklfile_prefix_,
                         submission_prefix_)
                 result_files[name] = result_files_
+               
         else:
             result_files = self.bbox2result_kitti(outputs, self.CLASSES,
                                                   pklfile_prefix,
                                                   submission_prefix)
+
         return result_files, tmp_dir
 
     def evaluate(self,

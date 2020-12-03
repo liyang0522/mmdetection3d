@@ -15,7 +15,7 @@ model = dict(
         style='caffe'),
     img_neck=dict(
         type='FPN',
-        in_channels=[256, 512, 1024, 2048],
+        in_channels=[256, 512, 1024, 1024],
         out_channels=256,
         num_outs=5),
     pts_voxel_layer=dict(
@@ -221,8 +221,8 @@ data = dict(
     test=dict(
         type=dataset_type,
         data_root=data_root,
-        ann_file=data_root + 'kitti_infos_val.pkl',
-        split='training',
+        ann_file=data_root + 'kitti_infos_test.pkl',
+        split='testing',
         pts_prefix='velodyne_reduced',
         pipeline=test_pipeline,
         modality=input_modality,
@@ -250,7 +250,7 @@ log_config = dict(
 # yapf:enable
 evaluation = dict(interval=1)
 # runtime settings
-total_epochs = 100
+total_epochs = 200
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = None

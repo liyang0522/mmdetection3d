@@ -94,7 +94,7 @@ def point_sample(
         # use img_shape before padding for flip
         orig_h, orig_w = img_shape
         coor_x = orig_w - coor_x
-
+    #print('img_pad_shape::',img_pad_shape)
     h, w = img_pad_shape
     coor_y = coor_y / h * 2 - 1
     coor_x = coor_x / w * 2 - 1
@@ -279,6 +279,13 @@ class PointFusion(nn.Module):
         Returns:
             torch.Tensor: Corresponding image features of each point.
         """
+        #print('img_feats[0] shape',img_feats[0].shape)# [1, 256, 104, 336]
+        #print('img_feats[1] shape',img_feats[1].shape)# [1, 256, 52, 168]
+        #print('img_feats[2] shape',img_feats[2].shape)# [1, 256, 26, 84]
+        #print('img_feats[3] shape',img_feats[3].shape)# [1, 256, 13, 42]
+        #print('img_feats[4] shape',img_feats[4].shape)# [1, 256, 7, 21]
+
+
         if self.lateral_convs is not None:
             #print('img_feats[i] shape',img_feats[0].shape) [1, 256, 56, 176]
             img_ins = [
@@ -331,6 +338,7 @@ class PointFusion(nn.Module):
         img_scale_factor = (
             pts.new_tensor(img_meta['scale_factor'][:2])
             if 'scale_factor' in img_meta.keys() else 1)
+        #print('img_scale_factor:',img_scale_factor)
         pcd_flip = img_meta['pcd_flip'] if 'pcd_flip' in img_meta.keys(
         ) else False
         img_flip = img_meta['flip'] if 'flip' in img_meta.keys() else False

@@ -299,15 +299,7 @@ class PointFusion(nn.Module):
         for i in range(len(img_metas)):
             mlvl_img_feats = []
             for level in range(len(self.img_levels)):
-<<<<<<< HEAD
-                if torch.isnan(img_ins[level][i:i + 1]).any():
-                    import pdb
-                    pdb.set_trace()
-                #print('img_ins[level][i:i + 1] shape',img_ins[level][i:i + 1].shape)   #[1, 128, 104, 320]) [1, 128, 52, 160]) [1, 128, 26, 80])[1, 128, 13, 40])[1, 128, 7, 20])
 
-
-=======
->>>>>>> 2b635d251b0aeba6414ef00401f8f8eeff98bde9
                 mlvl_img_feats.append(
                     self.sample_single(img_ins[level][i:i + 1], pts[i][:, :3],
                                        img_metas[i]))

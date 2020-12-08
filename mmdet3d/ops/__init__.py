@@ -10,12 +10,10 @@ from .group_points import (GroupAll, QueryAndGroup, group_points,
                            grouping_operation)
 from .interpolate import three_interpolate, three_nn
 from .norm import NaiveSyncBatchNorm1d, NaiveSyncBatchNorm2d
-<<<<<<< HEAD
-from .pointnet_modules import PointFPModule, PointSAModule, PointSAModuleMSG,StackSAModuleMSG,BallQuery,GroupingOperation, QueryAndGroup2,FurthestPointSampling
-=======
+
 from .pointnet_modules import (PointFPModule, PointSAModule, PointSAModuleMSG,
                                build_sa_module)
->>>>>>> 2b635d251b0aeba6414ef00401f8f8eeff98bde9
+
 from .roiaware_pool3d import (RoIAwarePool3d, points_in_boxes_batch,
                               points_in_boxes_cpu, points_in_boxes_gpu)
 from .sparse_block import (SparseBasicBlock, SparseBottleneck,
@@ -30,16 +28,10 @@ __all__ = [
     'SigmoidFocalLoss', 'SparseBasicBlock', 'SparseBottleneck',
     'RoIAwarePool3d', 'points_in_boxes_gpu', 'points_in_boxes_cpu',
     'make_sparse_convmodule', 'ball_query', 'furthest_point_sample',
-<<<<<<< HEAD
-    'three_interpolate', 'three_nn', 'gather_points', 'grouping_operation',
-    'group_points', 'GroupAll', 'QueryAndGroup', 'PointSAModule', 'StackSAModuleMSG','BallQuery','GroupingOperation', 'QueryAndGroup2','FurthestPointSampling',
-    'PointSAModuleMSG', 'PointFPModule', 'points_in_boxes_batch',
-    'get_compiler_version', 'get_compiling_cuda_version'
-=======
     'furthest_point_sample_with_dist', 'three_interpolate', 'three_nn',
     'gather_points', 'grouping_operation', 'group_points', 'GroupAll',
     'QueryAndGroup', 'PointSAModule', 'PointSAModuleMSG', 'PointFPModule',
     'points_in_boxes_batch', 'get_compiler_version',
     'get_compiling_cuda_version', 'Points_Sampler', 'build_sa_module'
->>>>>>> 2b635d251b0aeba6414ef00401f8f8eeff98bde9
+
 ]

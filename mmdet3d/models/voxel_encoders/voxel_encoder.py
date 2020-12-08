@@ -382,29 +382,8 @@ class HardVFE(nn.Module):
         if fusion_layer is not None:
             self.fusion_layer = builder.build_fusion_layer(fusion_layer)
 
-<<<<<<< HEAD
-        self.sa_layer = None
-        if sa_layer is not None:
-            self.sa_layer = builder.build_fusion_layer(sa_layer)
-        
-        
 
-        self.channel_at = nn.Sequential(
-            nn.Linear(256, 32),
-            nn.ReLU(inplace=True),
-            nn.Linear(32, 256),
-            nn.Sigmoid()
-            )
-        #voxel attention
-        self.voxel_at = nn.Sequential(
-            nn.Linear(256 + 3, 1),
-            nn.ReLU(inplace=True),
-            nn.Sigmoid()
-        )
-
-=======
     @force_fp32(out_fp16=True)
->>>>>>> 2b635d251b0aeba6414ef00401f8f8eeff98bde9
     def forward(self,
                 pts,
                 features,

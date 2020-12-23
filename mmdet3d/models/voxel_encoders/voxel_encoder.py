@@ -79,7 +79,11 @@ class DynamicSimpleVFE(nn.Module):
         """
         # This function is used from the start of the voxelnet
         # num_points: [concated_num_points]
+        print('features shape:',features[0])
+        print('coors shape:',coors[0])
         features, features_coors = self.scatter(features, coors)
+        print('features shape:',features[0])
+        print('features_coors shape:',features_coors[0])
         return features, features_coors
 
 
@@ -238,6 +242,9 @@ class DynamicVFE(nn.Module):
                 its coordinates. If `return_point_feats` is True, returns
                 feature of each points inside voxels.
         """
+        #print('features shape:',features.shape)  #torch.Size([35140, 4])
+        #print('coors shape:',coors.shape) #torch.Size([35140, 4])
+        #print('points shape:',points[1].shape) #torch.Size([18131, 4])  torch.Size([17009, 4])
         features_ls = [features]
         # Find distance of x, y, and z from cluster center
         if self._with_cluster_center:
@@ -269,8 +276,7 @@ class DynamicVFE(nn.Module):
             point_feats = vfe(features)
             if (i == len(self.vfe_layers) - 1 and self.fusion_layer is not None
                     and img_feats is not None):
-                point_feats = self.fusion_layer(img_feats, points, point_feats,
-                                                img_metas)
+                point_feats = self.fusion_layer(img_feats, points, point_feats,img_metas)
             voxel_feats, voxel_coors = self.vfe_scatter(point_feats, coors)
             if i != len(self.vfe_layers) - 1:
                 # need to concat voxel feats if it is not the last vfe

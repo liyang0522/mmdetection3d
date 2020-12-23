@@ -24,7 +24,6 @@ def point_sample(
     align_corners=True,
 ):
     """Obtain image features using points.
-
     Args:
         img_features (torch.Tensor): 1 x C x H x W image features.
         points (torch.Tensor): Nx3 point cloud in LiDAR coordinates.
@@ -50,13 +49,11 @@ def point_sample(
             features of out-of-image points. Defaults to 'zeros'.
         align_corners (bool, optional): Whether to align corners when
             sampling image features for each point. Defaults to True.
-
     Returns:
         torch.Tensor: NxC image features sampled by point coordinates.
     """
     # aug order: flip -> trans -> scale -> rot
     # The transformation follows the augmentation order in data pipeline
-    #print('img_features shape',img_features.shape)
     if pcd_flip:
         # if the points are flipped, flip them back first
         points[:, 1] = -points[:, 1]
@@ -94,7 +91,7 @@ def point_sample(
         # use img_shape before padding for flip
         orig_h, orig_w = img_shape
         coor_x = orig_w - coor_x
-    #print('img_pad_shape::',img_pad_shape)
+
     h, w = img_pad_shape
     coor_y = coor_y / h * 2 - 1
     coor_x = coor_x / w * 2 - 1
@@ -116,7 +113,6 @@ def point_sample(
 @FUSION_LAYERS.register_module()
 class PointFusion(nn.Module):
     """Fuse image features from multi-scale features.
-
     Args:
         img_channels (list[int] | int): Channels of image features.
             It could be a list if the input is multi-scale image features.
@@ -227,67 +223,47 @@ class PointFusion(nn.Module):
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 xavier_init(m, distribution='uniform')
 
-    def forward(self, img_feats, pts, img_metas):
-
+    def forward(self, img_feats, pts, pts_feats, img_metas):
         """Forward function.
-
         Args:
             img_feats (list[torch.Tensor]): Image features.
             pts: [list[torch.Tensor]]: A batch of points with shape N x 3.
             pts_feats (torch.Tensor): A tensor consist of point features of the
                 total batch.
             img_metas (list[dict]): Meta information of images.
-
         Returns:
             torch.Tensor: Fused features of each point.
         """
-        #print('img_pts shape',len(img_feats))  5
-        #print('pts_feats shape',pts_feats.shape) [18311, 64])
-        #print('img_metas',img_metas)
         img_pts = self.obtain_mlvl_feats(img_feats, pts, img_metas)
-        #print('img_pts shape',img_pts[0].shape) #640
         img_pre_fuse = self.img_transform(img_pts)
         if self.training and self.dropout_ratio > 0:
             img_pre_fuse = F.dropout(img_pre_fuse, self.dropout_ratio)
-        #print('img_pre_fuse shape',img_pre_fuse[0].shape)#128
+        pts_pre_fuse = self.pts_transform(pts_feats)
 
-        #pts_pre_fuse = self.pts_transform(pts_feats)
-        #print('pts_pre_fuse shape',pts_pre_fuse[0].shape) #128
-
-        #fuse_out = img_pre_fuse + pts_pre_fuse
-        fuse_out = img_pre_fuse 
-        
-        #print('pts_pre_fuse[0] shape',pts_pre_fuse[0][0]) #128
-        #print('img_pre_fuse[0] shape',img_pre_fuse[0][0])#128
-        #print('fuse_out[0] shape',fuse_out[0][0]) #[18311, 128])
+        fuse_out = img_pre_fuse + pts_pre_fuse
         if self.activate_out:
             fuse_out = F.relu(fuse_out)
         if self.fuse_out:
             fuse_out = self.fuse_conv(fuse_out)
-        #print('fuse_out shape',fuse_out.shape) #[18311, 128])
+
         return fuse_out
 
     def obtain_mlvl_feats(self, img_feats, pts, img_metas):
         """Obtain multi-level features for each point.
-
         Args:
             img_feats (list(torch.Tensor)): Multi-scale image features produced
                 by image backbone in shape (N, C, H, W).
             pts (list[torch.Tensor]): Points of each sample.
             img_metas (list[dict]): Meta information for each sample.
-
         Returns:
             torch.Tensor: Corresponding image features of each point.
         """
-        #print('img_feats[0] shape',img_feats[0].shape)# [1, 256, 104, 336]
-        #print('img_feats[1] shape',img_feats[1].shape)# [1, 256, 52, 168]
-        #print('img_feats[2] shape',img_feats[2].shape)# [1, 256, 26, 84]
-        #print('img_feats[3] shape',img_feats[3].shape)# [1, 256, 13, 42]
-        #print('img_feats[4] shape',img_feats[4].shape)# [1, 256, 7, 21]
 
-
+        #print('img_feats[0] shape',img_feats[0].shape) #[2, 256, 104, 336]
+        #print('img_feats[1] shape',img_feats[1].shape) #[2, 256, 52, 168]
+        #print('img_feats[2] shape',img_feats[2].shape)
+        #print('img_feats[3] shape',img_feats[3].shape)
         if self.lateral_convs is not None:
-            #print('img_feats[i] shape',img_feats[0].shape) [1, 256, 56, 176]
             img_ins = [
                 lateral_conv(img_feats[i])
                 for i, lateral_conv in zip(self.img_levels, self.lateral_convs)
@@ -299,7 +275,6 @@ class PointFusion(nn.Module):
         for i in range(len(img_metas)):
             mlvl_img_feats = []
             for level in range(len(self.img_levels)):
-
                 mlvl_img_feats.append(
                     self.sample_single(img_ins[level][i:i + 1], pts[i][:, :3],
                                        img_metas[i]))
@@ -311,13 +286,11 @@ class PointFusion(nn.Module):
 
     def sample_single(self, img_feats, pts, img_meta):
         """Sample features from single level image feature map.
-
         Args:
             img_feats (torch.Tensor): Image feature map in shape
                 (N, C, H, W).
             pts (torch.Tensor): Points of a single sample.
             img_meta (dict): Meta information of the single sample.
-
         Returns:
             torch.Tensor: Single level image features of each point.
         """
@@ -333,7 +306,6 @@ class PointFusion(nn.Module):
         img_scale_factor = (
             pts.new_tensor(img_meta['scale_factor'][:2])
             if 'scale_factor' in img_meta.keys() else 1)
-        #print('img_scale_factor:',img_scale_factor)
         pcd_flip = img_meta['pcd_flip'] if 'pcd_flip' in img_meta.keys(
         ) else False
         img_flip = img_meta['flip'] if 'flip' in img_meta.keys() else False
@@ -357,5 +329,4 @@ class PointFusion(nn.Module):
             padding_mode=self.padding_mode,
             align_corners=self.align_corners,
         )
-        
-        return img_pts   #[14945, 128]
+        return img_pts

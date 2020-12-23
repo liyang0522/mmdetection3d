@@ -50,11 +50,20 @@ class DynamicMVXFasterRCNN(MVXTwoStageDetector):
         if not self.with_pts_bbox:
             return None
         voxels, coors = self.voxelize(points)
+        #print('points shape',points[0].shape)  #([16308, 4]
+        #print('voxels shape',voxels.shape)  #[16308, 4]
+        #print('coors shape',coors.shape)    #[16308, 4]
         voxel_features, feature_coors = self.pts_voxel_encoder(
             voxels, coors, points, img_feats, img_metas)
+        #print('voxel_features shape',voxel_features.shape) #[14035, 128]
+        #print('feature_coors shape',feature_coors.shape) #[14035, 4]
+        
         batch_size = coors[-1, 0] + 1
-        x = self.pts_middle_encoder(voxel_features, feature_coors, batch_size)
+        x = self.pts_middle_encoder(voxel_features, feature_coors, batch_size) #[1, 256, 200, 176]
+        
         x = self.pts_backbone(x)
+    
         if self.with_pts_neck:
             x = self.pts_neck(x)
+            
         return x

@@ -183,23 +183,28 @@ class MVXTwoStageDetector(Base3DDetector):
             elif img.dim() == 5 and img.size(0) > 1:
                 B, N, C, H, W = img.size()
                 img = img.view(B * N, C, H, W)
+            
+            '''
+            img shaape  torch.Size([1, 3, 448, 1440])
+            1 img_feats shape torch.Size([1, 256, 112, 360])
+            1 img_feats shape torch.Size([1, 512, 56, 180])
+            1 img_feats shape torch.Size([1, 1024, 28, 90])
+            1 img_feats shape torch.Size([1, 2048, 14, 45])
+            2 img_feats shape torch.Size([1, 256, 112, 360])
+            2 img_feats shape torch.Size([1, 256, 56, 180])
+            2 img_feats shape torch.Size([1, 256, 28, 90])
+            2 img_feats shape torch.Size([1, 256, 14, 45])
+            2 img_feats shape torch.Size([1, 256, 7, 23])
+            '''
             img_feats = self.img_backbone(img)
-            #print('1 img_feats shape',img_feats[0].shape)  #[1, 256, 96, 312]
-            #print('1 img_feats shape',img_feats[1].shape)  #[1, 512, 48, 156]
-            #print('1 img_feats shape',img_feats[2].shape)  #[1, 1024, 24, 78]
-            #print('1 img_feats shape',img_feats[3].shape)  #[1, 2048, 12, 39]
-
+            
 
 
         else:
             return None
         if self.with_img_neck:
             img_feats = self.img_neck(img_feats)
-            #print('2 img_feats shape',img_feats[0].shape)  #[1, 256, 96, 312]
-            #print('2 img_feats shape',img_feats[1].shape)  #[1, 256, 48, 156]
-            #print('2 img_feats shape',img_feats[2].shape)  #[1, 256, 24, 78]
-            #print('2 img_feats shape',img_feats[3].shape)  #[1, 256, 12, 39]
-            #print('2 img_feats shape',img_feats[4].shape)  #[1, 256, 6, 20])
+           
         return img_feats
 
     def extract_pts_feat(self, pts, img_feats, img_metas):
@@ -297,8 +302,10 @@ class MVXTwoStageDetector(Base3DDetector):
             losses_pts = self.forward_pts_train(pts_feats, gt_bboxes_3d,
                                                 gt_labels_3d, img_metas,
                                                 gt_bboxes_ignore)
+            #print('losses_pts***********',losses_pts)
             losses.update(losses_pts)
         if img_feats:
+            
             losses_img = self.forward_img_train(
                 img_feats,
                 img_metas=img_metas,
@@ -306,6 +313,7 @@ class MVXTwoStageDetector(Base3DDetector):
                 gt_labels=gt_labels,
                 gt_bboxes_ignore=gt_bboxes_ignore,
                 proposals=proposals)
+            #print('losses_img***********',losses_img) #null
             losses.update(losses_img)
         return losses
 
@@ -335,6 +343,7 @@ class MVXTwoStageDetector(Base3DDetector):
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.pts_bbox_head.loss(
             *loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+
         return losses
 
     def forward_img_train(self,
@@ -385,6 +394,7 @@ class MVXTwoStageDetector(Base3DDetector):
         # bbox head forward and loss
         if self.with_img_bbox:
             # bbox head forward and loss
+            
             img_roi_losses = self.img_roi_head.forward_train(
                 x, img_metas, proposal_list, gt_bboxes, gt_labels,
                 gt_bboxes_ignore, **kwargs)

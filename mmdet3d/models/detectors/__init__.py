@@ -10,8 +10,11 @@ from .votenet import VoteNet
 from .voxelnet import VoxelNet
 from .multidynamic import MultiDynamic
 
+from .tmfnet import TaskMultiFusion
+
 __all__ = [
     'Base3DDetector', 'VoxelNet', 'DynamicVoxelNet', 'MVXTwoStageDetector',
     'DynamicMVXFasterRCNN', 'MVXFasterRCNN', 'PartA2', 'VoteNet', 'H3DNet',
-    'CenterPoint', 'SSD3DNet','MultiDynamic'
+    'CenterPoint', 'SSD3DNet','MultiDynamic',
+    'TaskMultiFusion'
 ]

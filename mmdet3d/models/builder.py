@@ -1,4 +1,4 @@
-from mmdet.models.builder import (BACKBONES, DETECTORS, HEADS, LOSSES, NECKS,
+from mmdet.models.builder import (BACKBONES, DETECTORS, HEADS, SINGLE_STAGE_HEADS,LOSSES, NECKS,
                                   ROI_EXTRACTORS, SHARED_HEADS, build)
 from .registry import FUSION_LAYERS, MIDDLE_ENCODERS, VOXEL_ENCODERS
 
@@ -27,6 +27,9 @@ def build_head(cfg):
     """Build head."""
     return build(cfg, HEADS)
 
+def build_single_stage_head(cfg):
+    """Build head."""
+    return build(cfg, SINGLE_STAGE_HEADS)
 
 def build_loss(cfg):
     """Build loss function."""

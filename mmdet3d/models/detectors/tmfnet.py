@@ -4,7 +4,7 @@ from torch.nn import functional as F
 from torch import nn as nn
 import copy
 import mmcv
-
+from mmcv.runner import auto_fp16
 from mmcv.parallel import DataContainer as DC
 
 from os import path as osp
@@ -216,50 +216,83 @@ class TaskMultiFusion(BaseDetector):
             self.extract_feat(pts, img_meta)
             for pts, img_meta in zip(points, img_metas)
         ]
-	
+	#base:forward_train(self, imgs, img_metas, **kwargs):
     def forward_train(self,
-    	img_metas, 
-    	imgs, 
+        img,
+    	img_metas,  
     	points, 
     	gt_bboxes_3d,
     	gt_labels_3d,
     	gt_bboxes_ignore=None,
     	**kwargs):
-
-   		x = self.extract_feat(points, img_metas)
-   		outs = self.pts_bbox_head(x)
-   		loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
-   		losses = self.pts_bbox_head.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
-   		return losses
+        
+        x = self.extract_feat(points, img_metas)
+        outs = self.pts_bbox_head(x)
+        loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
+        losses = self.pts_bbox_head.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        return losses
     
+    #base forward_test(self, imgs, img_metas, **kwargs)
+    def forward_test(self,img, img_metas, points, **kwargs):
+        """
+        Args:
+            points (list[torch.Tensor]): the outer list indicates test-time
+                augmentations and inner torch.Tensor should have a shape NxC,
+                which contains all points in the batch.
+            img_metas (list[list[dict]]): the outer list indicates test-time
+                augs (multiscale, flip, etc.) and the inner list indicates
+                images in a batch
+            img (list[torch.Tensor], optional): the outer
+                list indicates test-time augmentations and inner
+                torch.Tensor should have a shape NxCxHxW, which contains
+                all images in the batch. Defaults to None.
+        """
+        
+        for var, name in [(points, 'points'), (img_metas, 'img_metas')]:
+            if not isinstance(var, list):
+                raise TypeError('{} must be a list, but got {}'.format(
+                    name, type(var)))
 
-    def forward_test(self, img, img_meta, **kwargs):
+        num_augs = len(points)
+        if num_augs != len(img_metas):
+            raise ValueError(
+                'num of augmentations ({}) != num of image meta ({})'.format(
+                    len(points), len(img_metas)))
 
-        batch_size = len(img_meta)
+        if num_augs == 1:
+            img = [img] if img is None else img
+            return self.simple_test(points[0], img_metas[0], img[0], **kwargs)
+        else:
+            return self.aug_test(points, img_metas, img, **kwargs)
 
-        ret = self.merge_second_batch(kwargs)
+    @auto_fp16(apply_to=('img', 'points'))
+    def forward(self, return_loss=True, **kwargs):
+        """Calls either forward_train or forward_test depending on whether
+        return_loss=True.
 
-        vx = self.backbone(ret['voxels'], ret['num_points'])
-        (x, conv6) = self.neck(vx, ret['coordinates'], batch_size, is_test=True)
+        Note this setting will change the expected inputs. When
+        `return_loss=True`, img and img_metas are single-nested (i.e.
+        torch.Tensor and list[dict]), and when `resturn_loss=False`, img and
+        img_metas should be double nested (i.e.  list[torch.Tensor],
+        list[list[dict]]), with the outer list indicating test time
+        augmentations.
+        """
+        #print('tmfnet forward')  
+        
+        if return_loss:
+            return self.forward_train(**kwargs) #dict_keys(['img_metas', 'points', 'img', 'gt_bboxes_3d', 'gt_labels_3d'])
 
-        rpn_outs = self.rpn_head.forward(x)
+        else:
+            return self.forward_test(**kwargs)  #dict_keys(['rescale', 'img_metas', 'points', 'img'])
 
-        guided_anchors, anchor_labels = self.rpn_head.get_guided_anchors(*rpn_outs, ret['anchors'], ret['anchors_mask'],
-                                                                       None, None, thr=.1)
 
-        bbox_score = self.extra_head(conv6, guided_anchors, is_test=True)
 
-        det_bboxes, det_scores, det_labels = self.extra_head.get_rescore_bboxes(
-            guided_anchors, bbox_score, anchor_labels, img_meta, self.test_cfg.extra)
 
-        results = [kitti_bbox2results(*param, class_names=self.class_names) for param in zip(det_bboxes, det_scores, det_labels, img_meta)]
-
-        return results
     def simple_test(self, points, img_metas, imgs=None, rescale=False):
         """Test function without augmentaiton."""
         x = self.extract_feat(points, img_metas)
-        outs = self.bbox_head(x)
-        bbox_list = self.bbox_head.get_bboxes(
+        outs = self.pts_bbox_head(x)
+        bbox_list = self.pts_bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)
         bbox_results = [
             bbox3d2result(bboxes, scores, labels)
@@ -274,8 +307,8 @@ class TaskMultiFusion(BaseDetector):
         # only support aug_test for one sample
         aug_bboxes = []
         for x, img_meta in zip(feats, img_metas):
-            outs = self.bbox_head(x)
-            bbox_list = self.bbox_head.get_bboxes(
+            outs = self.pts_bbox_head(x)
+            bbox_list = self.pts_bbox_head.get_bboxes(
                 *outs, img_meta, rescale=rescale)
             bbox_list = [
                 dict(boxes_3d=bboxes, scores_3d=scores, labels_3d=labels)
@@ -288,3 +321,54 @@ class TaskMultiFusion(BaseDetector):
                                             self.bbox_head.test_cfg)
 
         return [merged_bboxes]
+
+
+    def show_results(self, data, result, out_dir):
+        """Results visualization.
+
+        Args:
+            data (list[dict]): Input points and the information of the sample.
+            result (list[dict]): Prediction results.
+            out_dir (str): Output directory of visualization result.
+        """
+        for batch_id in range(len(result)):
+            if isinstance(data['points'][0], DC):
+                points = data['points'][0]._data[0][batch_id].numpy()
+            elif mmcv.is_list_of(data['points'][0], torch.Tensor):
+                points = data['points'][0][batch_id]
+            else:
+                ValueError(f"Unsupported data type {type(data['points'][0])} "
+                           f'for visualization!')
+            if isinstance(data['img_metas'][0], DC):
+                pts_filename = data['img_metas'][0]._data[0][batch_id][
+                    'pts_filename']
+                box_mode_3d = data['img_metas'][0]._data[0][batch_id][
+                    'box_mode_3d']
+            elif mmcv.is_list_of(data['img_metas'][0], dict):
+                pts_filename = data['img_metas'][0][batch_id]['pts_filename']
+                box_mode_3d = data['img_metas'][0][batch_id]['box_mode_3d']
+            else:
+                ValueError(
+                    f"Unsupported data type {type(data['img_metas'][0])} "
+                    f'for visualization!')
+            file_name = osp.split(pts_filename)[-1].split('.')[0]
+
+            assert out_dir is not None, 'Expect out_dir, got none.'
+
+            pred_bboxes = copy.deepcopy(
+                result[batch_id]['boxes_3d'].tensor.numpy())
+            # for now we convert points into depth mode
+            if box_mode_3d == Box3DMode.DEPTH:
+                pred_bboxes[..., 2] += pred_bboxes[..., 5] / 2
+            elif (box_mode_3d == Box3DMode.CAM) or (box_mode_3d
+                                                    == Box3DMode.LIDAR):
+                points = points[..., [1, 0, 2]]
+                points[..., 0] *= -1
+                pred_bboxes = Box3DMode.convert(pred_bboxes, box_mode_3d,
+                                                Box3DMode.DEPTH)
+                pred_bboxes[..., 2] += pred_bboxes[..., 5] / 2
+            else:
+                ValueError(
+                    f'Unsupported box_mode_3d {box_mode_3d} for convertion!')
+
+            show_result(points, None, pred_bboxes, out_dir, file_name)

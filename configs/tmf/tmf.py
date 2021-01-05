@@ -4,7 +4,20 @@ point_cloud_range = [0, -40, -3, 70.4, 40, 1]
 
 model = dict(
     type='TaskMultiFusion',
-    
+    img_backbone=dict(
+        type='ResNet',
+        depth=50,
+        num_stages=4,
+        out_indices=(0, 1, 2, 3),
+        frozen_stages=4,
+        norm_cfg=dict(type='BN', requires_grad=False),
+        norm_eval=True,
+        style='caffe'),
+    img_neck=dict(
+        type='FPN',
+        in_channels=[256, 512, 1024, 2048],
+        out_channels=128,
+        num_outs=4),
     pts_voxel_layer=dict(
         max_num_points=5,
         point_cloud_range=[0, -40, -3, 70.4, 40, 1],
@@ -16,7 +29,10 @@ model = dict(
         type='SparseEncoder',
         in_channels=4,
         sparse_shape=[41, 1600, 1408],
-        order=('conv', 'norm', 'act')),
+        order=('conv', 'norm', 'act'),
+        IMG_CHANNELS=[3, 128, 128, 128, 128],
+        POINT_CHANNELS=[16, 32, 64, 64],
+        ADD_Image_Attention=True),
     pts_backbone=dict(
         type='SECOND',
         in_channels=256,
@@ -224,3 +240,4 @@ work_dir = None
 load_from = None
 resume_from = None
 workflow = [('train', 1)]
+#fp16 = dict(loss_scale=512.)

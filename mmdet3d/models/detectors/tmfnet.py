@@ -195,20 +195,55 @@ class TaskMultiFusion(BaseDetector):
         coors_batch = torch.cat(coors_batch, dim=0)
         return voxels, num_points, coors_batch
 
-    def extract_feat(self, points, img_metas=None):
+    def extract_img_feat(self, img, img_metas):
+        """Extract features of images."""
+        
+        if self.with_img_backbone and img is not None:
+            input_shape = img.shape[-2:]
+            # update real input shape of each single img
+            for img_meta in img_metas:
+                img_meta.update(input_shape=input_shape)
+
+
+            if img.dim() == 5 and img.size(0) == 1:
+                img.squeeze_()
+            elif img.dim() == 5 and img.size(0) > 1:
+                B, N, C, H, W = img.size()
+                img = img.view(B * N, C, H, W)
+            image = []
+            img_feats = self.img_backbone(img)
+            #print('1 img_feats shape',img_feats[0].shape)  #[1, 256, 96, 312]
+            #print('1 img_feats shape',img_feats[1].shape)  #[1, 512, 48, 156]
+            #print('1 img_feats shape',img_feats[2].shape)  #[1, 1024, 24, 78]
+            #print('1 img_feats shape',img_feats[3].shape)  #[1, 2048, 12, 39]
+        else:
+            return None
+        if self.with_img_neck:
+            img_feats = self.img_neck(img_feats)
+            #print('2 img_feats shape',img_feats[0].shape)  #[1, 256, 96, 312]
+            #print('2 img_feats shape',img_feats[1].shape)  #[1, 256, 48, 156]
+            #print('2 img_feats shape',img_feats[2].shape)  #[1, 256, 24, 78]
+            #print('2 img_feats shape',img_feats[3].shape)  #[1, 256, 12, 39]
+            #print('2 img_feats shape',img_feats[4].shape)  #[1, 256, 6, 20])
+        return img_feats
+
+    def extract_feat(self, points, img, img_metas=None, is_test=False):
         """Directly extract features from the backbone+neck.
 
         Args:
             points (torch.Tensor): Input points.
         """
+        
         voxels, num_points, coors = self.voxelize(points)
+        img_feats = self.extract_img_feat(img, img_metas)
         voxel_features = self.pts_voxel_encoder(voxels, num_points, coors)
         batch_size = coors[-1, 0].item() + 1
-        x = self.pts_middle_encoder(voxel_features, coors, batch_size)
+
+        x, point_misc = self.pts_middle_encoder(voxel_features, coors, batch_size,img_feats,img_metas, is_test)
         x = self.pts_backbone(x)
         if self.pts_neck:
             x = self.pts_neck(x)
-        return x
+        return x, point_misc
         
     def extract_feats(self, points, img_metas):
         """Extract features of multiple samples."""
@@ -226,7 +261,13 @@ class TaskMultiFusion(BaseDetector):
     	gt_bboxes_ignore=None,
     	**kwargs):
         
-        x = self.extract_feat(points, img_metas)
+        x, point_misc = self.extract_feat(points, img, img_metas, is_test=False)
+
+        losses = dict()
+
+        aux_loss = self.pts_middle_encoder.aux_loss(*point_misc, gt_bboxes=gt_bboxes_3d)
+        losses.update(aux_loss)
+
         outs = self.pts_bbox_head(x)
         loss_inputs = outs + (gt_bboxes_3d, gt_labels_3d, img_metas)
         losses = self.pts_bbox_head.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
@@ -290,7 +331,7 @@ class TaskMultiFusion(BaseDetector):
 
     def simple_test(self, points, img_metas, imgs=None, rescale=False):
         """Test function without augmentaiton."""
-        x = self.extract_feat(points, img_metas)
+        x = self.extract_feat(points, imgs,img_metas, is_test=True)
         outs = self.pts_bbox_head(x)
         bbox_list = self.pts_bbox_head.get_bboxes(
             *outs, img_metas, rescale=rescale)
@@ -302,7 +343,7 @@ class TaskMultiFusion(BaseDetector):
 
     def aug_test(self, points, img_metas, imgs=None, rescale=False):
         """Test function with augmentaiton."""
-        feats = self.extract_feats(points, img_metas)
+        feats = self.extract_feats(points, imgs,img_metas,is_test=True)
 
         # only support aug_test for one sample
         aug_bboxes = []
